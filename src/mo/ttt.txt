@@ -1,0 +1,212 @@
+package main
+
+func parseType(lex *Lexer, app *MoApp) (*Type, error) {
+	typo := Type{}
+	if !lex.Next() {
+		return nil, lex.Error
+	}
+
+	//	如果没有给类型定义名字就只能用随机名字代替
+	if "{" == lex.Token {
+		typo.Name = lex.randomName()
+	}
+
+	if TOKEN_NAME == lex.TokenType {
+		typo.Name = lex.Token
+		if !lex.AcceptTerminal('{') {
+			return nil, lex.Error
+		}
+	}
+
+	//	然后,立即向app注册,以解决类型引用自身的问题
+	//	TODO 但是没有解决解析失败后如何注销的问题----需要解决吗----可能在需要支持更高级别的解析能力的时候才用得着
+	_, ok := app.Types[typo.Name]
+	if ok {
+		return nil, fmt.Errorf("type '%s' is exist, should not be defined again", typo.Name)
+	}
+	app.Types[typo.Name] = typo
+
+	for {
+		if !lex.Next() {
+			return nil, lex.Error
+		}
+
+		if "}" == lex.Token {
+			return &typo, nil
+		}
+
+		field := Field{}
+		field.Name = lex.Token
+
+		if !lex.Next() {
+			return nil, lex.Error
+		}
+
+		//	识别是否虚拟字段
+		if "(" == lex.Token {
+			if !lex.AcceptTerminal(')') {
+				return nil, lex.Error
+			}
+
+			field.Virtual = true
+		}
+
+		//if ! lex.AcceptName() {
+		//	return nil, lex.Error
+		//}
+		//
+		//if !lex.Next() {
+		//	return nil, lex.Error
+		//}
+
+		if "type" == lex.Token {
+			embdedType, err := parseType(lex, app)
+			if nil != err {
+				return nil, lex.Error
+			}
+
+			field.Type = embdedType
+		} else {
+			embdedType, err := parseTypeRef(lex, app)
+			if nil != err {
+				return nil, lex.Error
+			}
+
+			field.Type = embdedType
+		}
+
+		fmt.Printf("Field '%s  %s' pass \n", field.Name, field.Type.Name)
+		typo.Fields = append(typo.Fields, field)
+	}
+}
+
+func Parse(reader io.Reader) (*MoApp, error) {
+	lex := OpenLexer(reader)
+
+	app := &MoApp{
+		Types:  make(map[string]Type),
+		Models: make(map[string]Model),
+	}
+
+	app.Types["string"] = Type{Name: "string"}
+	app.Types["int"] = Type{Name: "int"}
+	app.Types["float"] = Type{Name: "float"}
+	app.Types["bool"] = Type{Name: "bool"}
+
+	for {
+		if !lex.Next() {
+			return nil, lex.Error
+		}
+
+		token := lex.Token
+		if "type" == token {
+			_, err := parseType(lex, app)
+			if nil != err {
+				return nil, err
+			}
+
+			continue
+		}
+
+		if "model" == token {
+			_, err := parseModel(lex, app)
+			if nil != err {
+				return nil, err
+			}
+
+			continue
+		}
+
+		return nil, fmt.Errorf("unsupported token '%s'", token)
+	}
+}
+
+func parseModel(lex *Lexer, app *MoApp) (*Model, error) {
+	if !lex.AcceptName() {
+		return nil, lex.Error
+	}
+
+	model := &Model{}
+	model.Name = lex.Token
+
+	if !lex.Next() {
+		return nil, lex.Error
+	}
+
+	if "type" == lex.Token {
+		typo, err := parseType(lex, app)
+		if nil != err {
+			return nil, err
+		}
+
+		model.Type = typo
+	} else {
+		typo, err := parseTypeRef(lex, app)
+		if nil != err {
+			return nil, err
+		}
+
+		model.Type = typo
+	}
+
+	return model, nil
+}
+
+//	xxx;
+//	xxx(yyy)
+//	xxx(yyy,zzz)
+func parseTypeRef(lex *Lexer, app *MoApp) (*Type, error) {
+	basicType := lex.Token
+	typeName := lex.Token
+
+	if !lex.Next() {
+		return nil, lex.Error
+	}
+
+	paramTypes := make([]*Type, 0, 3)
+	if "(" == lex.Token {
+		typeName += "("
+
+		for {
+			if !lex.Next() {
+				return nil, lex.Error
+			}
+
+			if ")" == lex.Token {
+				typeName += ")"
+				break
+			}
+
+			//	模板的类型参数,仍然是类型
+			subType, err := parseTypeRef(lex, app)
+			if nil != err {
+				return nil, lex.Error
+			}
+
+			typeName += subType.Name
+			paramTypes = append(paramTypes, subType)
+
+			if !lex.Next() {
+				return nil, lex.Error
+			}
+
+			if "," == lex.Token {
+				typeName += ","
+				continue
+			}
+		}
+	}
+
+	if ("map" != basicType) && ("list" != basicType) {
+		typo, ok := app.Types[typeName]
+		if !ok {
+			return nil, fmt.Errorf("undefined type '%s'", typeName)
+		}
+
+		return &typo, nil
+	}
+
+	typo := Type{Name: typeName}
+	app.Types[typeName] = typo
+	return &typo, nil
+}
