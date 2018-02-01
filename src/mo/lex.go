@@ -45,36 +45,33 @@ type Tokenizer struct {
 
 type MoLexer struct {
 	top             *Tokenizer
-	error           error
+	result          Result
 	tokenText       string
 	tokenType       int
 	randomNameIndex int
 }
 
 func init() {
-	NewLexer = func(r io.Reader) Lexer {
+	NewLexer = func(r Result, reader io.Reader) Lexer {
 		return &MoLexer{
-			top:       &Tokenizer{scanner: bufio.NewScanner(r)},
+			top:       &Tokenizer{scanner: bufio.NewScanner(reader)},
 			tokenType: TOKEN_NULL,
+			result:    r,
 		}
 	}
 }
 
 func (lex *MoLexer) SetFail(err error) Lexer {
-	lex.error = err
+	lex.result.SetFail(err)
 	return lex
 }
 
-func (lex *MoLexer) OK() bool {
-	return lex.error == nil
+func (lex *MoLexer) Result() Result {
+	return lex.result
 }
 
-func (lex *MoLexer) Fail() bool {
-	return lex.error != nil
-}
-
-func (lex *MoLexer) Err() error {
-	return lex.error
+func (lex *MoLexer) EOF() bool {
+	return lex.tokenType == TOKEN_EOF
 }
 
 func (lex *MoLexer) Token() *Token {
@@ -145,10 +142,10 @@ func (lex *MoLexer) Locate() Lexer {
 
 func (lex *MoLexer) Next() Lexer {
 	//	先定位
-	if lex.Locate().Fail() {
-		if ERROR_EOF == lex.error {
+	if lex.Locate().Result().Fail() {
+		if ERROR_EOF == lex.result.Err() {
 			lex.tokenType = TOKEN_EOF
-			lex.tokenText = ""
+			lex.tokenText = "(eof)"
 		}
 		return lex
 	}

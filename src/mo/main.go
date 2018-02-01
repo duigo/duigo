@@ -31,19 +31,10 @@ func main() {
 		return
 	}
 
-	lex := NewLexer(bytes.NewReader(s))
-	//for lex.Next().OK() {
-	//	fmt.Println("--- ", lex.Token().Type, " ", lex.Token().Text)
-	//}
-	//
-	//if TOKEN_EOF != lex.Token().Type {
-	//	if err := lex.Err(); nil != err {
-	//		fmt.Printf("parse error: %s\n", err.Error())
-	//		return
-	//	}
-	//}
+	result := NewResult()
 
-	if err := Parse(lex, new(BraiderProgram).init(nil), NDMORE); nil != err {
-		fmt.Println(err.Error())
+	context := NewContext(result, NewLexer(result, bytes.NewReader(s)), NewSyntaxer(result, new(BraiderProgram))).Walk(ACCEPT)
+	if context.Result.Fail() {
+		fmt.Println(result.Error())
 	}
 }
