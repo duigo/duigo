@@ -2,7 +2,6 @@ package win
 
 import (
 	"github.com/duigo/duigo/core"
-	"reflect"
 )
 
 type DefaultProxy struct {
@@ -13,6 +12,10 @@ type DefaultProxy struct {
 
 type DefaultModel struct {
 	proxys map[string]*DefaultProxy
+}
+
+func initDefaultModel() {
+
 }
 
 func NewDefaultModel() *DefaultModel {
@@ -52,7 +55,7 @@ func (m *DefaultModel) Define(name string, getter func() interface{}, setter fun
 }
 
 func (m *DefaultModel) Wrapup(name string, def interface{}) {
-	v := reflect.ValueOf(def)
+	//v := reflect.ValueOf(def)
 }
 
 func (m *DefaultModel) Get(name string) interface{} {
@@ -62,6 +65,7 @@ func (m *DefaultModel) Get(name string) interface{} {
 	}
 
 	proxy.getter()
+	return nil
 }
 
 func (m *DefaultModel) Set(name string, v interface{}) {

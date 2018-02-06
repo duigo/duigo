@@ -1,5 +1,7 @@
 package core
 
+import "io"
+
 type Model interface {
 	Define(name string, getter func() interface{}, setter func(interface{}))
 	Depict(name string, v string)
@@ -14,3 +16,5 @@ type Model interface {
 type Watcher interface {
 	Update(name string, v interface{})
 }
+
+var LoadModel func(reader io.Reader) Model
